@@ -36,5 +36,6 @@
   "text-level-3": "Nice",
   "text-level-4": "Awesome",
   "text-level-5": "R U kidding?",
-  "time-over": "You've cheated for "
+  "time-over": "You've cheated for ",
+  "logout": "Logout"
 }

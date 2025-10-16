@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>游戏登录</title>
+    <link
+      href="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.staticfile.org/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="/css/index.css" rel="stylesheet" type="text/css" />
+  </head>
+
+  <body>
+    <div class="login-container">
+      <h1 class="login-title"><i class="fas fa-gamepad"></i> 游戏登录</h1>
+
+      <!-- 登录表单 -->
+      <form id="loginForm" class="auth-form">
+        <div class="mb-3">
+          <label for="loginUsername" class="form-label">用户名</label>
+          <input
+            type="text"
+            class="form-control"
+            id="loginUsername"
+            name="username"
+            placeholder="请输入用户名"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="loginPassword" class="form-label">密码</label>
+          <input
+            type="password"
+            class="form-control"
+            id="loginPassword"
+            name="password"
+            placeholder="请输入密码"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-login">登录</button>
+        <div class="error-message" id="loginErrorMessage"></div>
+        <div class="switch-form">
+          还没有账号？<a href="#" id="showRegister">立即注册</a>
+        </div>
+      </form>
+
+      <!-- 注册表单 -->
+      <form id="registerForm" class="auth-form" style="display: none">
+        <div class="mb-3">
+          <label for="registerUsername" class="form-label">用户名</label>
+          <input
+            type="text"
+            class="form-control"
+            id="registerUsername"
+            name="username"
+            placeholder="请输入用户名"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="registerPassword" class="form-label">密码</label>
+          <input
+            type="password"
+            class="form-control"
+            id="registerPassword"
+            name="password"
+            placeholder="请输入密码"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="confirmPassword" class="form-label">确认密码</label>
+          <input
+            type="password"
+            class="form-control"
+            id="confirmPassword"
+            name="confirmPassword"
+            placeholder="请再次输入密码"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-login">注册</button>
+        <div class="error-message" id="registerErrorMessage"></div>
+        <div class="success-message" id="registerSuccessMessage"></div>
+        <div class="switch-form">
+          已有账号？<a href="#" id="showLogin">立即登录</a>
+        </div>
+      </form>
+    </div>
+
+    <script src="https://cdn.staticfile.org/jquery/3.6.0/jquery.min.js"></script>
+    <script src="/js/index.js"></script>
+  </body>
+</html>

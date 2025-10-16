@@ -77,13 +77,13 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
     }
 
     function getMode() {
-        //有cookie优先返回cookie记录的，没有再返回normal
-        return cookie('gameMode') ? parseInt(cookie('gameMode')) : MODE_NORMAL;
+        // 从后端加载，默认为普通模式
+        return MODE_NORMAL;
     }
 
     function getSoundMode() {
-        // 默认为 on
-        return cookie('soundMode') ? cookie('soundMode') : 'on';
+        // 从后端加载，默认为 on
+        return 'on';
     }
 
     w.changeSoundMode = function() {
@@ -94,7 +94,8 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
             soundMode = 'on';
             $('#sound').text(I18N['sound-on']);
         }
-        cookie('soundMode', soundMode);
+        // 保存到后端
+        saveConfigToBackend();
     }
 
     function modeToString(m) {
@@ -103,8 +104,9 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
 
     w.changeMode = function(m) {
         mode = m;
-        cookie('gameMode', m);
         $('#mode').text(modeToString(m));
+        // 保存到后端
+        saveConfigToBackend();
     }
 
     w.readyBtn = function() {
@@ -401,10 +403,8 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
     }
 
     function getBestScore(score) {
-        let cookieName = (mode === MODE_NORMAL ? 'best-score' : 'endless-best-score');
-        let best = cookie(cookieName) ? Math.max(parseFloat(cookie(cookieName)), score) : score;
-        cookie(cookieName, best.toFixed(2), 100);
-        return best;
+        // 从后端获取最佳成绩（已在 showGameScoreLayer 中处理）
+        return score;
     }
 
     function scoreToString(score) {
@@ -423,7 +423,7 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
         let c = _gameBBList[idx] ? ($(`#${_gameBBList[idx].id}`).attr('class') || '').match(_ttreg) : null;
         c = c ? c[1] : '1';
         let score = (mode === MODE_ENDLESS ? cps : _gameScore);
-        let best = getBestScore(score);
+        
         l.attr('class', l.attr('class').replace(/bgc\d/, 'bgc' + c));
         let text = shareText(cps);
         $('#GameScoreLayer-text').html(text ? text : '成绩');
@@ -438,7 +438,19 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
         $('#cps').text(finalCps && !isNaN(finalCps) ? finalCps.toFixed(2) : '0.00');
         $('#score').text(scoreToString(score));
         $('#GameScoreLayer-score').css('display', mode === MODE_ENDLESS ? 'none' : '');
-        $('#best').text(scoreToString(best));
+
+        // 保存成绩到后端并获取最佳成绩
+        saveScoreToBackend(score, finalCps).then(() => {
+            // 从后端获取最佳成绩
+            GameAPI.getBestScore(mode).then(result => {
+                if (result) {
+                    let best = mode === MODE_NORMAL ? (result.bestScore || 0) : (result.bestCps || 0);
+                    $('#best').text(scoreToString(best));
+                } else {
+                    $('#best').text(scoreToString(score));
+                }
+            });
+        });
 
         l.css('display', 'block');
     }
@@ -475,53 +487,18 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
     return I18N['text-level-5'];
     }
 
-    function toStr(obj) {
-        if (typeof obj === 'object') {
-            return JSON.stringify(obj);
-        } else {
-            return obj;
-        }
-    }
 
-    function cookie(name, value, time) {
-        if (name) {
-            if (value) {
-                if (time) {
-                    let date = new Date();
-                    date.setTime(date.getTime() + 864e5 * time), time = date.toGMTString();
-                }
-                return document.cookie = name + "=" + escape(toStr(value)) + (time ? "; expires=" + time + (arguments[3] ?
-                    "; path=" + arguments[3] + (arguments[4] ? "; domain=" + arguments[4] + (arguments[5] ? "; secure" : "") : "") : "") : ""), !0;
-            }
-            return value = document.cookie.match(RegExp("(^|;) ?" + name + "=([^;]*)(;|$)")), value ? unescape(value[2]) : "";
-        }
-        let data = {};
-        value = document.cookie.replace(/\s/g, "").split(";");
-        for (let i = 0; value.length > i; i++) data[value[i].split("=")[0]] = unescape(value[i].split("=")[1]);
-        return data;
-    }
 
     // 用现代 DOM API 插入游戏层
     gameBody.innerHTML += createGameLayer();
 
     function initSetting() {
-        $("#username").val(cookie("username") ? cookie("username") : "");
-        $("#message").val(cookie("message") ? cookie("message") : "");
-        if (cookie("title")) {
-            document.title = cookie("title");
-            $("#title").val(cookie("title"));
-        }
-        let keyboard = cookie('keyboard');
-        if (keyboard && keyboard.length === 4) {
-            map = {};
-            for (let i = 0; i < keyboard.length; i++) {
-                map[keyboard[i].toLowerCase()] = i; // 0~3 编号
-            }
-            $('#keyboard').val(keyboard);
-        } else {
-            map = {'d': 0, 'f': 1, 'j': 2, 'k': 3};
-        }
-        // 重新绑定按键监听，确保 map 始终最新
+        // 从后端加载用户配置
+        loadConfigFromBackend();
+        
+        map = {'d': 0, 'f': 1, 'j': 2, 'k': 3};
+        
+        // 绑定按键监听
         document.onkeydown = function (e) {
             let key = e.key.toLowerCase();
             if (key in map) {
@@ -529,9 +506,95 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
                 e.preventDefault();
             }
         }
-        if (cookie('gameTime')) {
-            _gameSettingNum = parseInt(cookie('gameTime'));
-            $('#gameTime').val(_gameSettingNum);
+    }
+
+    // 从后端加载配置
+    async function loadConfigFromBackend() {
+        const config = await GameAPI.getConfig();
+        if (config) {
+            // 更新按键配置
+            if (config.keyboard && config.keyboard.length === 4) {
+                map = {};
+                for (let i = 0; i < config.keyboard.length; i++) {
+                    map[config.keyboard[i].toLowerCase()] = i;
+                }
+                $('#keyboard').val(config.keyboard);
+            }
+            
+            // 更新游戏时长
+            if (config.gameTime) {
+                _gameSettingNum = config.gameTime;
+                $('#gameTime').val(config.gameTime);
+            }
+            
+            // 更新游戏模式
+            if (config.gameMode) {
+                mode = config.gameMode;
+                $('#mode').text(modeToString(mode));
+            }
+            
+            // 更新音效模式
+            if (config.soundMode) {
+                soundMode = config.soundMode;
+                $('#sound').text(soundMode === 'on' ? I18N['sound-on'] : I18N['sound-off']);
+            }
+            
+            // 更新标题
+            if (config.title) {
+                document.title = config.title;
+                $('#title').val(config.title);
+            }
+            
+            // 加载点击前图片
+            if (config.imageBefore) {
+                clickBeforeStyle.html(`
+                    .t1, .t2, .t3, .t4, .t5 {
+                       background-size: auto 100%;
+                       background-image: url(${config.imageBefore});
+                }`);
+            }
+            
+            // 加载点击后图片
+            if (config.imageAfter) {
+                clickAfterStyle.html(`
+                    .tt1, .tt2, .tt3, .tt4, .tt5 {
+                      background-size: auto 86%;
+                      background-image: url(${config.imageAfter});
+                }`);
+            }
+            
+            // 重新绑定按键
+            document.onkeydown = function (e) {
+                let key = e.key.toLowerCase();
+                if (key in map) {
+                    click(map[key]);
+                    e.preventDefault();
+                }
+            }
+        }
+    }
+
+    // 保存配置到后端
+    async function saveConfigToBackend() {
+        const config = {
+            keyboard: $('#keyboard').val() || 'dfjk',
+            gameTime: parseInt($('#gameTime').val()) || 20,
+            gameMode: mode,
+            soundMode: soundMode,
+            title: $('#title').val() || ''
+        };
+        
+        await GameAPI.saveConfig(config);
+    }
+
+    // 保存成绩到后端
+    async function saveScoreToBackend(score, cps) {
+        // console.log('保存成绩到后端:', { score, mode, cps });
+        try {
+            const result = await GameAPI.saveScore(score, mode, cps);
+            console.log('成绩保存成功:', result);
+        } catch (error) {
+            console.error('保存成绩失败:', error);
         }
     }
 
@@ -547,12 +610,7 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
     }
 
     w.save_cookie = function() {
-        const settings = ['username', 'message', 'keyboard', 'title', 'gameTime'];
-        for (let s of settings) {
-            if ($(`#${s}`).val()) {
-                cookie(s, $(`#${s}`).val());
-            }
-        }
+        // 保存配置到后端
         // 立即更新 map，确保新按键生效
         let keyboard = $('#keyboard').val();
         if (keyboard && keyboard.length === 4) {
@@ -561,7 +619,30 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
                 map[keyboard[i].toLowerCase()] = i;
             }
         }
-        initSetting();
+        
+        // 更新游戏时长
+        let gameTime = parseInt($('#gameTime').val());
+        if (gameTime) {
+            _gameSettingNum = gameTime;
+        }
+        
+        // 更新标题
+        let title = $('#title').val();
+        if (title) {
+            document.title = title;
+        }
+        
+        // 重新绑定按键监听（使用更新后的 map）
+        document.onkeydown = function (e) {
+            let key = e.key.toLowerCase();
+            if (key in map) {
+                click(map[key]);
+                e.preventDefault();
+            }
+        }
+        
+        // 保存到后端
+        saveConfigToBackend();
     }
 
     function isnull(val) {
@@ -622,6 +703,15 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
                    background-size: auto 100%;
                    background-image: url(${r});
             }`);
+            
+            // 保存到后端
+            GameAPI.saveConfig({
+                imageBefore: r
+            }).then(result => {
+                if (result) {
+                    console.log('点击前图片已保存到后端');
+                }
+            });
         })
     }
 
@@ -637,6 +727,22 @@ const MODE_NORMAL = 1, MODE_ENDLESS = 2;
                   background-size: auto 86%;
                   background-image: url(${r});
             }`);
+            
+            // 保存到后端
+            GameAPI.saveConfig({
+                imageAfter: r
+            }).then(result => {
+                if (result) {
+                    console.log('点击后图片已保存到后端');
+                }
+            });
         })
+    }
+
+    // 登出功能
+    w.logout = function() {
+        if (confirm('确定要退出登录吗？')) {
+            window.location.href = '/logout';
+        }
     }
 }) (window);
